@@ -1,0 +1,37 @@
+jenkins:
+  systemMessage: |
+    Microservices Demo Jenkins
+    Managed using Jenkins Configuration as Code.
+
+  numExecutors: 0
+
+  mode: EXCLUSIVE
+
+  scmCheckoutRetryCount: 2
+
+  disableRememberMe: true
+
+  remotingSecurity:
+    enabled: true
+
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_USERNAME}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+
+unclassified:
+
+  location:
+    url: "${JENKINS_URL}"
+
+  sonarGlobalConfiguration:
+    installations:
+      - name: "sonarqube"
+        serverUrl: "${SONARQUBE_URL}"
+        credentialsId: "sonarqube-token"
