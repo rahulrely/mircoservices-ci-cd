@@ -1,0 +1,285 @@
+pipeline {
+    agent none
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+
+        buildDiscarder(
+            logRotator(
+                numToKeepStr: '20',
+                artifactNumToKeepStr: '10'
+            )
+        )
+    }
+
+    environment {
+        SERVICE_NAME = 'paymentservice'
+        SERVICE_DIR = 'src/paymentservice'
+
+        GHCR_REGISTRY = 'ghcr.io'
+        GHCR_OWNER = 'YOUR_GITHUB_USERNAME'
+        GHCR_REPOSITORY = 'microservices-demo/paymentservice'
+
+        IMAGE_TAG = "${env.GIT_COMMIT}"
+
+        SONARQUBE_SERVER = 'sonarqube'
+    }
+
+    stages {
+
+        /*
+         * ------------------------------------------------
+         * 1. CHECKOUT
+         * ------------------------------------------------
+         */
+
+        stage('Checkout') {
+            agent {
+                label 'linux-docker'
+            }
+
+            steps {
+                checkout scm
+
+                script {
+                    env.SHORT_COMMIT = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Building ${SERVICE_NAME}"
+                    echo "Commit: ${SHORT_COMMIT}"
+                }
+            }
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 2. NODE BUILD + TEST
+         * ------------------------------------------------
+         */
+
+        stage('Build & Test') {
+            agent {
+                label 'linux-docker'
+            }
+
+            steps {
+                dir("${SERVICE_DIR}") {
+
+                    sh '''
+                        node --version
+                        npm --version
+
+                        npm ci
+
+                        chmod +x genproto.sh
+                        ./genproto.sh
+
+                        npm test
+                    '''
+                }
+            }
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 3. SONARQUBE ANALYSIS
+         * ------------------------------------------------
+         */
+
+        stage('SonarQube Analysis') {
+            agent {
+                label 'linux-docker'
+            }
+
+            steps {
+                dir("${SERVICE_DIR}") {
+
+                    withSonarQubeEnv("${SONARQUBE_SERVER}") {
+
+                        sh '''
+                            sonar-scanner \
+                                -Dsonar.projectKey=microservices-demo-paymentservice \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=$SONAR_HOST_URL
+                        '''
+                    }
+                }
+            }
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 4. QUALITY GATE
+         * ------------------------------------------------
+         */
+
+        stage('Quality Gate') {
+            agent none
+
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+
+                    waitForQualityGate(
+                        abortPipeline: true
+                    )
+                }
+            }
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 5. DOCKER BUILD
+         * ------------------------------------------------
+         */
+
+        stage('Docker Build') {
+            agent {
+                label 'linux-docker'
+            }
+
+            steps {
+                dir("${SERVICE_DIR}") {
+
+                    sh '''
+                        docker build \
+                            -t ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG} \
+                            -t ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:latest \
+                            .
+                    '''
+                }
+            }
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 6. TRIVY SECURITY SCAN
+         * ------------------------------------------------
+         */
+
+        stage('Security Scan') {
+            agent {
+                label 'linux-docker'
+            }
+
+            steps {
+
+                sh '''
+                    trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 7. GHCR LOGIN
+         * ------------------------------------------------
+         */
+
+        stage('GHCR Login') {
+            agent {
+                label 'linux-docker'
+            }
+
+            steps {
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'github-container-registry',
+                        usernameVariable: 'GHCR_USERNAME',
+                        passwordVariable: 'GHCR_TOKEN'
+                    )
+                ]) {
+
+                    sh '''
+                        echo "${GHCR_TOKEN}" | \
+                        docker login ${GHCR_REGISTRY} \
+                            --username "${GHCR_USERNAME}" \
+                            --password-stdin
+                    '''
+                }
+            }
+        }
+
+
+        /*
+         * ------------------------------------------------
+         * 8. PUSH IMAGE
+         * ------------------------------------------------
+         */
+
+        stage('Push Image') {
+            agent {
+                label 'linux-docker'
+            }
+
+            steps {
+
+                sh '''
+                    docker push \
+                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
+
+                    docker push \
+                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:latest
+                '''
+            }
+        }
+    }
+
+
+    /*
+     * ----------------------------------------------------
+     * POST ACTIONS
+     * ----------------------------------------------------
+     */
+
+    post {
+
+        success {
+            echo """
+            ==============================================
+            CI PIPELINE SUCCESS
+            ==============================================
+
+            Service : ${SERVICE_NAME}
+            Commit  : ${SHORT_COMMIT}
+
+            Image:
+            ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
+
+            ==============================================
+            """
+        }
+
+        failure {
+            echo """
+            ==============================================
+            CI PIPELINE FAILED
+            ==============================================
+
+            Service : ${SERVICE_NAME}
+            Commit  : ${SHORT_COMMIT}
+
+            Check Jenkins logs.
+
+            ==============================================
+            """
+        }
+
+        always {
+            cleanWs()
+        }
+    }
+}
