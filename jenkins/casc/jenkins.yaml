@@ -11,9 +11,6 @@ jenkins:
 
   disableRememberMe: true
 
-  remotingSecurity:
-    enabled: true
-
   authorizationStrategy:
     loggedInUsersCanDoAnything:
       allowAnonymousRead: false
