@@ -1,0 +1,68 @@
+controller:
+
+  serviceType: LoadBalancer
+
+  servicePort: 8080
+
+  installPlugins:
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - github
+    - configuration-as-code
+    - credentials-binding
+    - sonar
+    - junit
+    - timestamper
+    - ws-cleanup
+
+  JCasC:
+    defaultConfig: true
+
+    configScripts:
+
+      welcome-message: |
+        jenkins:
+          systemMessage: "Microservices CI/CD Jenkins"
+
+      security-config: |
+        jenkins:
+          authorizationStrategy:
+            loggedInUsersCanDoAnything:
+              allowAnonymousRead: false
+
+      agent-config: |
+        jenkins:
+          clouds:
+            - kubernetes:
+                name: "kubernetes"
+                namespace: "jenkins"
+                serverUrl: ""
+                skipTlsVerify: false
+                podLabels:
+                  - key: "jenkins"
+                    value: "agent"
+
+agent:
+  enabled: true
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: false
+  name: jenkins
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: gp3
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"

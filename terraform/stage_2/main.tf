@@ -1,3 +1,13 @@
+data "terraform_remote_state" "stage_1" {
+  backend = "s3"
+
+  config = {
+    bucket = "microservices-ci-cd-terraform-state1410"
+    key    = "stage-1/terraform.tfstate"
+    region = "ap-south-1"
+  }
+}
+
 # =========================================================
 # EKS CLUSTER IAM ROLE
 # =========================================================
@@ -42,7 +52,7 @@ resource "aws_eks_cluster" "main" {
 
   vpc_config {
 
-    subnet_ids = var.private_subnet_ids
+    subnet_ids = data.terraform_remote_state.stage_1.outputs.private_subnet_ids
 
     endpoint_private_access = true
     endpoint_public_access  = true

@@ -38,8 +38,8 @@ variable "private_subnet_ids" {
   type        = list(string)
 
   default = [
-    "subnet-001f5ebbabfbab65d",
-    "subnet-00433f61570258fc7"
+    "subnet-01ea44082ec2a0b81",
+    "subnet-00cbe0fca436beb6c"
   ]
 }
 
