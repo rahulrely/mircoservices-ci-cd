@@ -23,27 +23,6 @@ variable "owner" {
 }
 
 # ---------------------------------------------------------
-# NETWORK
-# ---------------------------------------------------------
-
-variable "vpc_id" {
-  description = "VPC ID created by Stage 1"
-  type        = string
-
-  default = "vpc-0925498b19d62c4d9"
-}
-
-variable "private_subnet_ids" {
-  description = "Private subnet IDs created by Stage 1"
-  type        = list(string)
-
-  default = [
-    "subnet-01ea44082ec2a0b81",
-    "subnet-00cbe0fca436beb6c"
-  ]
-}
-
-# ---------------------------------------------------------
 # EKS
 # ---------------------------------------------------------
 

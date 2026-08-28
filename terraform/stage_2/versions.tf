@@ -9,10 +9,10 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "microservices-ci-cd-terraform-state1410"
-    key            = "stage-2/terraform.tfstate"
-    region         = "ap-south-1"
-    dynamodb_table = "microservices-ci-cd-terraform-lock"
-    encrypt        = true
+    bucket       = "microservices-ci-cd-terraform-state1410"
+    key          = "stage-2/terraform.tfstate"
+    region       = "ap-south-1"
+    encrypt      = true
+    use_lockfile = true
   }
 }

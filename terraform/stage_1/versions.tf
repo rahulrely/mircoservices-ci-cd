@@ -7,4 +7,11 @@ terraform {
       version = "~> 6.60"
     }
   }
+  backend "s3" {
+    bucket       = "microservices-ci-cd-terraform-state1410"
+    key          = "stage-1/terraform.tfstate"
+    region       = "ap-south-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 }

@@ -100,7 +100,7 @@ resource "kubernetes_service_account" "jenkins" {
 
     annotations = {
 
-      "eks.amazonaws.com/role-arn" =  aws_iam_role.jenkins.arn
+      "eks.amazonaws.com/role-arn" = aws_iam_role.jenkins.arn
     }
 
     labels = {

@@ -59,10 +59,10 @@ output "ecr_repository_urls" {
 
 output "vpc_id" {
   description = "VPC used by EKS"
-  value       = var.vpc_id
+  value       = data.terraform_remote_state.stage_1.outputs.vpc_id
 }
 
 output "private_subnet_ids" {
   description = "Private subnets used by EKS"
-  value       = var.private_subnet_ids
+  value       = data.terraform_remote_state.stage_1.outputs.private_subnet_ids
 }
