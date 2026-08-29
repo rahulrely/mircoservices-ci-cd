@@ -23,7 +23,7 @@ pipeline {
         GHCR_REGISTRY = 'ghcr.io'
 
         // Change this to your GitHub username/org
-        GHCR_OWNER = 'YOUR_GITHUB_USERNAME'
+        GHCR_OWNER = 'rahulrely'
 
         GHCR_REPOSITORY = 'microservices-demo/adservice'
 

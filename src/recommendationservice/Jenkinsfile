@@ -19,7 +19,7 @@ pipeline {
         SERVICE_DIR = 'src/recommendationservice'
 
         GHCR_REGISTRY = 'ghcr.io'
-        GHCR_OWNER = 'YOUR_GITHUB_USERNAME'
+        GHCR_OWNER = 'rahulrely'
         GHCR_REPOSITORY = 'microservices-demo/recommendationservice'
 
         IMAGE_TAG = "${env.GIT_COMMIT}"

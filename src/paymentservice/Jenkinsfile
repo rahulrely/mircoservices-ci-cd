@@ -19,7 +19,7 @@ pipeline {
         SERVICE_DIR = 'src/paymentservice'
 
         GHCR_REGISTRY = 'ghcr.io'
-        GHCR_OWNER = 'YOUR_GITHUB_USERNAME'
+        GHCR_OWNER = 'rahulrely'
         GHCR_REPOSITORY = 'microservices-demo/paymentservice'
 
         IMAGE_TAG = "${env.GIT_COMMIT}"
