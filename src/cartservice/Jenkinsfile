@@ -114,36 +114,30 @@ spec:
             }
         }
 
-
-stage('Build & Push to ECR') {
+    stage('Build & Push to ECR') {
     steps {
         container('kaniko') {
             sh '''
                 cd ${WORKSPACE}/${SERVICE_DIR}
 
                 echo "======================================"
-                echo "Current directory:"
-                pwd
-
+                echo "Building ${SERVICE_NAME}"
+                echo "Dockerfile: src/Dockerfile"
+                echo "Context: ${WORKSPACE}/${SERVICE_DIR}"
                 echo "======================================"
-                echo "Files:"
-                ls -la
 
-                echo "======================================"
-                echo "Dockerfiles:"
-                find . -maxdepth 3 -type f -iname 'Dockerfile' -print
+                test -f src/Dockerfile
 
-                echo "======================================"
-                echo "Kaniko build:"
-                
                 /kaniko/executor \
                   --context=$(pwd) \
-                  --dockerfile=$(pwd)/Dockerfile \
+                  --dockerfile=$(pwd)/src/Dockerfile \
                   --destination=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             '''
         }
     }
 }
+
+
     }
 
 
