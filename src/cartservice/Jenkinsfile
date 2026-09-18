@@ -121,14 +121,16 @@ spec:
                 container('kaniko') {
 
                     sh '''
+                        cd ${WORKSPACE}/${SERVICE_DIR}
+
                         /kaniko/executor \
-                          --context=${WORKSPACE}/${SERVICE_DIR} \
-                          --dockerfile=${WORKSPACE}/${SERVICE_DIR}/Dockerfile \
-                          --destination=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+                        --context=. \
+                        --dockerfile=Dockerfile \
+                        --destination=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
                     '''
                 }
-            }
-        }
+    }
+}
     }
 
 
