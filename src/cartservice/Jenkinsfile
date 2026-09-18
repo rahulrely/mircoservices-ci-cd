@@ -16,7 +16,7 @@ spec:
   containers:
 
   - name: dotnet
-    image: mcr.microsoft.com/dotnet/sdk:8.0
+    image: mcr.microsoft.com/dotnet/sdk:9.0
     command:
     - sleep
     args:
