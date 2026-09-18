@@ -43,26 +43,26 @@ variable "node_instance_types" {
   type        = list(string)
 
   default = [
-    "t3.micro"
+    "m7i-flex.large"
   ]
 }
 
 variable "node_desired_size" {
   description = "Desired number of EKS worker nodes"
   type        = number
-  default     = 10
+  default     = 4
 }
 
 variable "node_min_size" {
   description = "Minimum number of EKS worker nodes"
   type        = number
-  default     = 10
+  default     = 3
 }
 
 variable "node_max_size" {
   description = "Maximum number of EKS worker nodes"
   type        = number
-  default     = 12
+  default     = 10
 }
 
 # ---------------------------------------------------------
