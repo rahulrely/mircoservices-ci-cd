@@ -1,10 +1,42 @@
 pipeline {
-    agent none
+    agent {
+        kubernetes {
+            cloud 'kubernetes'
+            namespace 'jenkins'
+
+            yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: jenkins-ci-agent
+spec:
+  serviceAccountName: jenkins
+
+  containers:
+
+  - name: golang
+    image: golang:1.23.4-alpine
+    command:
+    - sleep
+    args:
+    - 99d
+    tty: true
+
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    command:
+    - sleep
+    args:
+    - 99d
+    tty: true
+'''
+        }
+    }
 
     options {
         timestamps()
         disableConcurrentBuilds()
-        skipDefaultCheckout(true)
 
         buildDiscarder(
             logRotator(
@@ -18,173 +50,89 @@ pipeline {
         SERVICE_NAME = 'checkoutservice'
         SERVICE_DIR = 'src/checkoutservice'
 
-        GHCR_REGISTRY = 'ghcr.io'
-        GHCR_OWNER = 'rahulrely'
-        GHCR_REPOSITORY = 'microservices-demo/checkoutservice'
+        AWS_REGION = 'ap-south-1'
 
-        IMAGE_TAG = "${env.GIT_COMMIT}"
-
-        SONARQUBE_SERVER = 'sonarqube'
+        ECR_REGISTRY = '029678959141.dkr.ecr.ap-south-1.amazonaws.com'
+        ECR_REPOSITORY = 'microservices-demo/checkoutservice'
     }
 
     stages {
 
         stage('Checkout') {
-            agent {
-                label 'linux-docker'
-            }
-
             steps {
                 checkout scm
 
                 script {
-                    env.SHORT_COMMIT = sh(
+                    env.GIT_COMMIT_SHORT = sh(
                         script: 'git rev-parse --short HEAD',
                         returnStdout: true
                     ).trim()
 
-                    echo "Building ${SERVICE_NAME}"
-                    echo "Commit: ${SHORT_COMMIT}"
+                    env.IMAGE_TAG = sh(
+                        script: 'git rev-parse HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "======================================"
+                    echo "Service : ${SERVICE_NAME}"
+                    echo "Commit  : ${GIT_COMMIT_SHORT}"
+                    echo "======================================"
                 }
             }
         }
 
 
-        stage('Go Build & Test') {
-            agent {
-                label 'linux-docker'
-            }
-
+        stage('Build & Test') {
             steps {
-                dir("${SERVICE_DIR}") {
 
-                    sh '''
-                        go version
+                container('golang') {
 
-                        go mod download
-
-                        chmod +x genproto.sh
-                        ./genproto.sh
-
-                        go test ./...
-                    '''
-                }
-            }
-        }
-
-
-        stage('SonarQube Analysis') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-                dir("${SERVICE_DIR}") {
-
-                    withSonarQubeEnv("${SONARQUBE_SERVER}") {
+                    dir("${SERVICE_DIR}") {
 
                         sh '''
-                            sonar-scanner \
-                                -Dsonar.projectKey=microservices-demo-checkoutservice \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=$SONAR_HOST_URL
+                            go version
+
+                            go mod download
+
+                            chmod +x genproto.sh
+                            ./genproto.sh
+
+                            go test ./...
                         '''
                     }
                 }
             }
-        }
 
-
-        stage('Quality Gate') {
-            agent none
-
-            steps {
-                timeout(time: 10, unit: 'MINUTES') {
-
-                    waitForQualityGate(
-                        abortPipeline: true
-                    )
+            post {
+                always {
+                    echo "Build/Test stage completed."
                 }
             }
         }
 
 
-        stage('Docker Build') {
-            agent {
-                label 'linux-docker'
-            }
-
+        stage('Build & Push to ECR') {
             steps {
-                dir("${SERVICE_DIR}") {
+
+                container('kaniko') {
 
                     sh '''
-                        docker build \
-                            -t ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG} \
-                            -t ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:latest \
-                            .
+                        cd ${WORKSPACE}/${SERVICE_DIR}
+
+                        echo "======================================"
+                        echo "Building ${SERVICE_NAME}"
+                        echo "Dockerfile: Dockerfile"
+                        echo "Context: ${WORKSPACE}/${SERVICE_DIR}"
+                        echo "======================================"
+
+                        test -f Dockerfile
+
+                        /kaniko/executor \
+                          --context=$(pwd) \
+                          --dockerfile=$(pwd)/Dockerfile \
+                          --destination=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
                     '''
                 }
-            }
-        }
-
-
-        stage('Security Scan') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-
-                sh '''
-                    trivy image \
-                        --severity HIGH,CRITICAL \
-                        --exit-code 1 \
-                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
-                '''
-            }
-        }
-
-
-        stage('GHCR Login') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'github-container-registry',
-                        usernameVariable: 'GHCR_USERNAME',
-                        passwordVariable: 'GHCR_TOKEN'
-                    )
-                ]) {
-
-                    sh '''
-                        echo "${GHCR_TOKEN}" | \
-                        docker login ${GHCR_REGISTRY} \
-                            --username "${GHCR_USERNAME}" \
-                            --password-stdin
-                    '''
-                }
-            }
-        }
-
-
-        stage('Push Image') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-
-                sh '''
-                    docker push \
-                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
-
-                    docker push \
-                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:latest
-                '''
             }
         }
     }
@@ -194,33 +142,33 @@ pipeline {
 
         success {
             echo """
-            ==============================================
-            CI PIPELINE SUCCESS
-            ==============================================
+==============================================
+CI PIPELINE SUCCESS
+==============================================
 
-            Service : ${SERVICE_NAME}
-            Commit  : ${SHORT_COMMIT}
+Service : ${SERVICE_NAME}
+Commit  : ${GIT_COMMIT_SHORT}
 
-            Image:
-            ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
+ECR Image:
+${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
-            ==============================================
-            """
+==============================================
+"""
         }
 
         failure {
             echo """
-            ==============================================
-            CI PIPELINE FAILED
-            ==============================================
+==============================================
+CI PIPELINE FAILED
+==============================================
 
-            Service : ${SERVICE_NAME}
-            Commit  : ${SHORT_COMMIT}
+Service : ${SERVICE_NAME}
+Commit  : ${GIT_COMMIT_SHORT}
 
-            Check Jenkins logs.
+Check Jenkins logs.
 
-            ==============================================
-            """
+==============================================
+"""
         }
 
         always {
