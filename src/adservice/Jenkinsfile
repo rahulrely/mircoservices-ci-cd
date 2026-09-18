@@ -82,31 +82,34 @@ spec:
         }
 
         stage('Build & Test') {
-            steps {
-                container('gradle') {
-                    dir("${SERVICE_DIR}") {
-                        sh '''
-                            chmod +x gradlew
-                            ./gradlew clean test
-                        '''
-                    }
-                }
+    steps {
+        container('gradle') {
+            dir("${SERVICE_DIR}") {
+                sh '''
+                    chmod +x gradlew
+                    ./gradlew clean test
+                '''
             }
+        }
+    }
 
-            post {
-                always {
-                    script {
-                        def testResults = "${SERVICE_DIR}/build/test-results/test/*.xml"
+    post {
+        always {
+            script {
+                def testReportDir = "${SERVICE_DIR}/build/test-results/test"
 
-                        if (findFiles(glob: testResults).length > 0) {
-                            junit testResults: testResults
-                        } else {
-                            echo "No JUnit test reports found for ${SERVICE_NAME}"
-                        }
-                    }
+                if (fileExists(testReportDir)) {
+                    junit(
+                        testResults: "${testReportDir}/*.xml",
+                        allowEmptyResults: true
+                    )
+                } else {
+                    echo "No JUnit test reports found for ${SERVICE_NAME} (tests may be NO-SOURCE)"
                 }
             }
         }
+    }
+}
 
         stage('Build & Push to ECR') {
             steps {
