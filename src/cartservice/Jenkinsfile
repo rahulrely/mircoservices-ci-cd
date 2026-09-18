@@ -109,20 +109,7 @@ spec:
 
             post {
                 always {
-                    script {
-                        def testResults = findFiles(
-                            glob: "${SERVICE_DIR}/**/TestResults/*.trx"
-                        )
-
-                        if (testResults.length > 0) {
-                            echo "Test result files found:"
-                            testResults.each {
-                                echo " - ${it.path}"
-                            }
-                        } else {
-                            echo "No TRX test result files found."
-                        }
-                    }
+                    echo "Build/Test stage completed."
                 }
             }
         }
