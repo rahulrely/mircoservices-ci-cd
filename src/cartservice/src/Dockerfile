@@ -20,14 +20,14 @@ ARG TARGETARCH
 
 WORKDIR /app
 
-COPY src/cartservice.csproj .
+COPY src/cartservice.csproj ./src/cartservice.csproj
 
-RUN dotnet restore cartservice.csproj \
+RUN dotnet restore src/cartservice.csproj \
     -a $TARGETARCH
 
 COPY src/ ./src/
 
-RUN dotnet publish cartservice.csproj \
+RUN dotnet publish src/cartservice.csproj \
     -p:PublishSingleFile=true \
     -a $TARGETARCH \
     --self-contained true \
@@ -36,7 +36,7 @@ RUN dotnet publish cartservice.csproj \
     -c release \
     -o /cartservice
 
-FROM mcr.microsoft.com/dotnet/runtime-deps:9.0.1-noble-chiseled@sha256:6f7466eda39e24ef7eab2325e15d776a685d13cc93b4ea0cde9ee4f7982210
+FROM mcr.microsoft.com/dotnet/runtime-deps:9.0.1-noble-chiseled
 
 WORKDIR /app
 
