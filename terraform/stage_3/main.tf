@@ -2,6 +2,10 @@
 # STAGE 2 REMOTE STATE
 # =========================================================
 
+data "aws_caller_identity" "current" {
+
+}
+
 data "terraform_remote_state" "stage_2" {
   backend = "s3"
 
@@ -195,6 +199,50 @@ resource "aws_iam_role" "jenkins" {
   }
 }
 
+# =========================================================
+# JENKINS ECR PUSH POLICY
+# =========================================================
+
+resource "aws_iam_role_policy" "jenkins_ecr" {
+
+  name = "${local.jenkins_role_name}-ecr"
+
+  role = aws_iam_role.jenkins.id
+
+  policy = jsonencode({
+
+    Version = "2012-10-17"
+
+    Statement = [
+
+      # Required to obtain an ECR authorization token
+      {
+        Effect = "Allow"
+
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ]
+
+        Resource = "*"
+      },
+
+      # Allow Jenkins to push images to project ECR repositories
+      {
+        Effect = "Allow"
+
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:CompleteLayerUpload",
+          "ecr:InitiateLayerUpload",
+          "ecr:PutImage",
+          "ecr:UploadLayerPart"
+        ]
+
+        Resource = "arn:aws:ecr:${var.aws_region}:${data.aws_caller_identity.current.account_id}:repository/microservices-demo/*"
+      }
+    ]
+  })
+}
 
 # =========================================================
 # JENKINS SERVICE ACCOUNT

@@ -95,10 +95,15 @@ spec:
 
             post {
                 always {
-                    junit(
-                        testResults: "${SERVICE_DIR}/build/test-results/test/*.xml",
-                        allowEmptyResults: true
-                    )
+                    script {
+                        def testResults = "${SERVICE_DIR}/build/test-results/test/*.xml"
+
+                        if (findFiles(glob: testResults).length > 0) {
+                            junit testResults: testResults
+                        } else {
+                            echo "No JUnit test reports found for ${SERVICE_NAME}"
+                        }
+                    }
                 }
             }
         }
