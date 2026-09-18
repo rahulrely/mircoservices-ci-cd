@@ -14,22 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:9.0.101-noble@sha256:1f13e67d295e02abdfd187c341f887442bad611eda536766172ced401fc8b9fa AS builder
-
-ARG TARGETARCH
+FROM mcr.microsoft.com/dotnet/sdk:9.0.101-noble@sha256:1f13e67d295e02abdfd187c341f887442bad611eda536766172ced401fc8b9fa AS builder
 
 WORKDIR /app
 
 COPY src/cartservice.csproj ./src/cartservice.csproj
 
-RUN dotnet restore src/cartservice.csproj \
-    -a $TARGETARCH
+RUN dotnet restore src/cartservice.csproj
 
 COPY src/ ./src/
 
 RUN dotnet publish src/cartservice.csproj \
     -p:PublishSingleFile=true \
-    -a $TARGETARCH \
     --self-contained true \
     -p:PublishTrimmed=true \
     -p:TrimMode=full \
