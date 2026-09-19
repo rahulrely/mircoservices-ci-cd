@@ -16,7 +16,7 @@ spec:
   containers:
 
   - name: golang
-    image: golang:1.24.13-alpine
+    image: golang:1.25.0-alpine
     command:
     - sleep
     args:
@@ -24,7 +24,7 @@ spec:
     tty: true
 
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    image: gcr.io/kaniko-project/executor:v1.25.0-debug
     command:
     - sleep
     args:
