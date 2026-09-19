@@ -81,30 +81,35 @@ spec:
         }
 
         stage('Build & Validate') {
-            steps {
-                container('node') {
-                    dir("${SERVICE_DIR}") {
-                        sh '''
-                            set -e
+    steps {
+        container('node') {
+            dir("${SERVICE_DIR}") {
+                sh '''
+                    set -e
 
-                            node --version
-                            npm --version
+                    node --version
+                    npm --version
 
-                            npm ci
+                    apk add --no-cache \
+                        python3 \
+                        make \
+                        g++
 
-                            node --check server.js
-                            node --check client.js
-                        '''
-                    }
-                }
-            }
+                    npm ci
 
-            post {
-                always {
-                    echo "Build/validation stage completed."
-                }
+                    node --check server.js
+                    node --check client.js
+                '''
             }
         }
+    }
+
+    post {
+        always {
+            echo "Build/validation stage completed."
+        }
+    }
+}
 
         stage('Build & Push to ECR') {
             steps {
