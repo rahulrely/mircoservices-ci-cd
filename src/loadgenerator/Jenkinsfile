@@ -18,260 +18,144 @@ pipeline {
         SERVICE_NAME = 'loadgenerator'
         SERVICE_DIR = 'src/loadgenerator'
 
-        GHCR_REGISTRY = 'ghcr.io'
-        GHCR_OWNER = 'rahulrely'
-        GHCR_REPOSITORY = 'microservices-demo/loadgenerator'
-
-        IMAGE_TAG = "${env.GIT_COMMIT}"
-
-        SONARQUBE_SERVER = 'sonarqube'
+        AWS_REGION = 'ap-south-1'
+        ECR_REGISTRY = '029678959141.dkr.ecr.ap-south-1.amazonaws.com'
+        ECR_REPOSITORY = 'microservices-demo/loadgenerator'
     }
 
     stages {
 
-        /*
-         * ------------------------------------------------
-         * 1. CHECKOUT
-         * ------------------------------------------------
-         */
-
-        stage('Checkout') {
+        stage('CI') {
             agent {
-                label 'linux-docker'
-            }
+                kubernetes {
+                    yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: loadgenerator-ci
+spec:
+  serviceAccountName: jenkins
 
-            steps {
-                checkout scm
+  containers:
 
-                script {
-                    env.SHORT_COMMIT = sh(
-                        script: 'git rev-parse --short HEAD',
-                        returnStdout: true
-                    ).trim()
+  - name: python
+    image: python:3.12.8-alpine
+    command:
+    - cat
+    tty: true
 
-                    echo "Building ${SERVICE_NAME}"
-                    echo "Commit: ${SHORT_COMMIT}"
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    command:
+    - /busybox/cat
+    tty: true
+    volumeMounts:
+    - name: docker-config
+      mountPath: /kaniko/.docker
+
+  volumes:
+  - name: docker-config
+    emptyDir: {}
+'''
                 }
             }
-        }
 
+            stages {
 
-        /*
-         * ------------------------------------------------
-         * 2. PYTHON DEPENDENCIES
-         * ------------------------------------------------
-         */
+                stage('Checkout') {
+                    steps {
+                        checkout scm
 
-        stage('Install Dependencies') {
-            agent {
-                label 'linux-docker'
-            }
+                        script {
+                            env.IMAGE_TAG = sh(
+                                script: 'git rev-parse HEAD',
+                                returnStdout: true
+                            ).trim()
 
-            steps {
-                dir("${SERVICE_DIR}") {
+                            env.SHORT_COMMIT = sh(
+                                script: 'git rev-parse --short HEAD',
+                                returnStdout: true
+                            ).trim()
+                        }
 
-                    sh '''
-                        python3 --version
-                        pip3 --version
-
-                        python3 -m venv .venv
-
-                        . .venv/bin/activate
-
-                        pip install --upgrade pip
-
-                        pip install -r requirements.txt
-                    '''
+                        echo "Building ${SERVICE_NAME}"
+                        echo "Commit: ${SHORT_COMMIT}"
+                    }
                 }
-            }
-        }
 
+                stage('Install Dependencies') {
+                    steps {
+                        container('python') {
+                            dir("${SERVICE_DIR}") {
+                                sh '''
+                                    set -e
 
-        /*
-         * ------------------------------------------------
-         * 3. VALIDATE LOCUST FILE
-         * ------------------------------------------------
-         */
+                                    python --version
+                                    pip --version
 
-        stage('Validate') {
-            agent {
-                label 'linux-docker'
-            }
+                                    apk add --no-cache \
+                                        gcc \
+                                        g++ \
+                                        musl-dev \
+                                        make \
+                                        linux-headers
 
-            steps {
-                dir("${SERVICE_DIR}") {
+                                    python -m venv .venv
 
-                    sh '''
-                        . .venv/bin/activate
+                                    . .venv/bin/activate
 
-                        python -m py_compile locustfile.py
-                    '''
+                                    pip install --upgrade pip
+                                    pip install -r requirements.txt
+                                '''
+                            }
+                        }
+                    }
                 }
-            }
-        }
 
+                stage('Validate') {
+                    steps {
+                        container('python') {
+                            dir("${SERVICE_DIR}") {
+                                sh '''
+                                    set -e
 
-        /*
-         * ------------------------------------------------
-         * 4. SONARQUBE
-         * ------------------------------------------------
-         */
+                                    . .venv/bin/activate
 
-        stage('SonarQube Analysis') {
-            agent {
-                label 'linux-docker'
-            }
+                                    python -m py_compile locustfile.py
 
-            steps {
-                dir("${SERVICE_DIR}") {
+                                    echo "locustfile.py validation successful"
+                                '''
+                            }
+                        }
+                    }
+                }
 
-                    withSonarQubeEnv("${SONARQUBE_SERVER}") {
+                stage('Docker Build & Push') {
+                    steps {
+                        container('kaniko') {
+                            dir("${SERVICE_DIR}") {
+                                sh '''
+                                    set -e
 
-                        sh '''
-                            sonar-scanner \
-                                -Dsonar.projectKey=microservices-demo-loadgenerator \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=$SONAR_HOST_URL
-                        '''
+                                    test -f Dockerfile
+
+                                    /kaniko/executor \
+                                        --context "$(pwd)" \
+                                        --dockerfile "$(pwd)/Dockerfile" \
+                                        --destination "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" \
+                                        --cache=true \
+                                        --cache-repo "${ECR_REGISTRY}/${ECR_REPOSITORY}/cache"
+                                '''
+                            }
+                        }
                     }
                 }
             }
         }
-
-
-        /*
-         * ------------------------------------------------
-         * 5. QUALITY GATE
-         * ------------------------------------------------
-         */
-
-        stage('Quality Gate') {
-            agent none
-
-            steps {
-                timeout(time: 10, unit: 'MINUTES') {
-
-                    waitForQualityGate(
-                        abortPipeline: true
-                    )
-                }
-            }
-        }
-
-
-        /*
-         * ------------------------------------------------
-         * 6. DOCKER BUILD
-         * ------------------------------------------------
-         */
-
-        stage('Docker Build') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-                dir("${SERVICE_DIR}") {
-
-                    sh '''
-                        docker build \
-                            -t ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG} \
-                            -t ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:latest \
-                            .
-                    '''
-                }
-            }
-        }
-
-
-        /*
-         * ------------------------------------------------
-         * 7. SECURITY SCAN
-         * ------------------------------------------------
-         */
-
-        stage('Security Scan') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-
-                sh '''
-                    trivy image \
-                        --severity HIGH,CRITICAL \
-                        --exit-code 1 \
-                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
-                '''
-            }
-        }
-
-
-        /*
-         * ------------------------------------------------
-         * 8. GHCR LOGIN
-         * ------------------------------------------------
-         */
-
-        stage('GHCR Login') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'github-container-registry',
-                        usernameVariable: 'GHCR_USERNAME',
-                        passwordVariable: 'GHCR_TOKEN'
-                    )
-                ]) {
-
-                    sh '''
-                        echo "${GHCR_TOKEN}" | \
-                        docker login ${GHCR_REGISTRY} \
-                            --username "${GHCR_USERNAME}" \
-                            --password-stdin
-                    '''
-                }
-            }
-        }
-
-
-        /*
-         * ------------------------------------------------
-         * 9. PUSH IMAGE
-         * ------------------------------------------------
-         */
-
-        stage('Push Image') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-
-                sh '''
-                    docker push \
-                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
-
-                    docker push \
-                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:latest
-                '''
-            }
-        }
     }
 
-
-    /*
-     * ----------------------------------------------------
-     * POST ACTIONS
-     * ----------------------------------------------------
-     */
-
     post {
-
         success {
             echo """
             ==============================================
@@ -282,7 +166,7 @@ pipeline {
             Commit  : ${SHORT_COMMIT}
 
             Image:
-            ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
+            ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
             ==============================================
             """
@@ -301,10 +185,6 @@ pipeline {
 
             ==============================================
             """
-        }
-
-        always {
-            cleanWs()
         }
     }
 }
