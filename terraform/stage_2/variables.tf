@@ -84,6 +84,7 @@ variable "ecr_repositories" {
     "microservices-demo/paymentservice",
     "microservices-demo/productcatalogservice",
     "microservices-demo/recommendationservice",
-    "microservices-demo/shippingservice"
+    "microservices-demo/shippingservice",
+    "microservices-demo/shoppingassistantservice",
   ]
 }
