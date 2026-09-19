@@ -30,6 +30,14 @@ spec:
     args:
     - 99d
     tty: true
+
+    - name: trivy
+    image: public.ecr.aws/aquasecurity/trivy:0.74.0
+    command:
+        - sleep
+    args:
+        - 99d
+    tty: true
 '''
         }
     }
@@ -82,34 +90,34 @@ spec:
         }
 
         stage('Build & Test') {
-    steps {
-        container('gradle') {
-            dir("${SERVICE_DIR}") {
-                sh '''
-                    chmod +x gradlew
-                    ./gradlew clean test
-                '''
+            steps {
+                container('gradle') {
+                    dir("${SERVICE_DIR}") {
+                        sh '''
+                            chmod +x gradlew
+                            ./gradlew clean test
+                        '''
+                    }
+                }
             }
-        }
-    }
 
-    post {
-        always {
-            script {
-                def testReportDir = "${SERVICE_DIR}/build/test-results/test"
+            post {
+                always {
+                    script {
+                        def testReportDir = "${SERVICE_DIR}/build/test-results/test"
 
-                if (fileExists(testReportDir)) {
-                    junit(
-                        testResults: "${testReportDir}/*.xml",
-                        allowEmptyResults: true
-                    )
-                } else {
-                    echo "No JUnit test reports found for ${SERVICE_NAME} (tests may be NO-SOURCE)"
+                        if (fileExists(testReportDir)) {
+                            junit(
+                                testResults: "${testReportDir}/*.xml",
+                                allowEmptyResults: true
+                            )
+                        } else {
+                            echo "No JUnit test reports found for ${SERVICE_NAME} (tests may be NO-SOURCE)"
+                        }
+                    }
                 }
             }
         }
-    }
-}
 
         stage('Build & Push to ECR') {
             steps {
@@ -124,24 +132,38 @@ spec:
                 }
             }
         }
+
+        stage('Trivy Scan') {
+            steps {
+                container('trivy') {
+                    sh '''
+                        trivy image \
+                        --scanners vuln \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        ${ECR_REPO}:${IMAGE_TAG}
+                    '''
+                }
+            }
+        }
     }
 
     post {
 
         success {
             echo """
-==============================================
-CI PIPELINE SUCCESS
-==============================================
+                ==============================================
+                CI PIPELINE SUCCESS
+                ==============================================
 
-Service : ${SERVICE_NAME}
-Commit  : ${GIT_COMMIT_SHORT}
+                Service : ${SERVICE_NAME}
+                Commit  : ${GIT_COMMIT_SHORT}
 
-ECR Image:
-${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+                ECR Image:
+                ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
-==============================================
-"""
+                ==============================================
+                """
         }
 
         failure {
