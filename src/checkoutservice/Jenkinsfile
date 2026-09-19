@@ -24,7 +24,7 @@ spec:
     tty: true
 
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.25.0-debug
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
     command:
     - sleep
     args:
@@ -150,40 +150,26 @@ spec:
     }
 
     post {
-
         success {
             echo """
-                ==============================================
-                CI PIPELINE SUCCESS
-                ==============================================
-
-                Service : ${SERVICE_NAME}
-                Commit  : ${GIT_COMMIT_SHORT}
-
-                ECR Image:
-                ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
-
-                ==============================================
-                """
+            ==============================================
+            CI PIPELINE SUCCESS
+            ==============================================
+            Service : ${SERVICE_NAME}
+            Commit  : ${GIT_COMMIT_SHORT}
+            ==============================================
+            """
         }
 
         failure {
             echo """
-                ==============================================
-                CI PIPELINE FAILED
-                ==============================================
-
-                Service : ${SERVICE_NAME}
-                Commit  : ${GIT_COMMIT_SHORT}
-
-                Check Jenkins logs.
-
-                ==============================================
-                """
-        }
-
-        always {
-            cleanWs()
+            ==============================================
+            CI PIPELINE FAILED
+            ==============================================
+            Service : ${SERVICE_NAME}
+            Commit  : ${GIT_COMMIT_SHORT}
+            ==============================================
+            """
         }
     }
 }
