@@ -96,9 +96,10 @@ spec:
                         g++
 
                     npm ci
-
                     node --check server.js
-                    node --check client.js
+                    node --check index.js
+                    node --check charge.js
+                    node --check logger.js
                 '''
             }
         }
@@ -136,8 +137,8 @@ spec:
     }
 
     post {
-        success {
-            echo """
+    success {
+        echo """
 ==============================================
 CI PIPELINE SUCCESS
 ==============================================
@@ -150,10 +151,10 @@ ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
 ==============================================
 """
-        }
+    }
 
-        failure {
-            echo """
+    failure {
+        echo """
 ==============================================
 CI PIPELINE FAILED
 ==============================================
@@ -165,10 +166,6 @@ Check Jenkins logs.
 
 ==============================================
 """
-        }
-
-        always {
-            cleanWs()
-        }
     }
+}
 }
