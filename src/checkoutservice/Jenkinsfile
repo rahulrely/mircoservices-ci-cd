@@ -81,7 +81,7 @@ spec:
             }
         }
 
-        stage('Build & Test') {
+stage('Build & Test') {
     steps {
         container('golang') {
             dir("${SERVICE_DIR}") {
@@ -89,19 +89,7 @@ spec:
                     set -e
 
                     go version
-
-                    apk add --no-cache bash protobuf
-
-                    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
-                    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-
-                    export PATH="$PATH:$(go env GOPATH)/bin"
-
                     go mod download
-
-                    chmod +x genproto.sh
-                    ./genproto.sh
-
                     go test ./...
                 '''
             }
