@@ -17,11 +17,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0.101-noble@sha256:1f13e67d295e02abdfd187c341f887442bad611eda536766172ced401fc8b9fa AS builder
 
 WORKDIR /app
-
 COPY src/cartservice.csproj ./src/cartservice.csproj
-
 RUN dotnet restore src/cartservice.csproj
-
 COPY src/ ./src/
 
 RUN dotnet publish src/cartservice.csproj \
@@ -32,10 +29,9 @@ RUN dotnet publish src/cartservice.csproj \
     -c release \
     -o /cartservice
 
-FROM mcr.microsoft.com/dotnet/runtime-deps:9.0.1-noble-chiseled
+FROM mcr.microsoft.com/dotnet/runtime-deps:9.0-noble-chiseled@sha256:ff9f18214d41534bb06a78195e2733422e1f075d2ed95d7c362dc4b61a616ec8
 
 WORKDIR /app
-
 COPY --from=builder /cartservice .
 
 EXPOSE 7070
