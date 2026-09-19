@@ -1,5 +1,31 @@
 pipeline {
-    agent none
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins
+
+  containers:
+  - name: python
+    image: python:3.12-alpine
+    command:
+    - sleep
+    args:
+    - 99d
+    tty: true
+
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    command:
+    - sleep
+    args:
+    - 99d
+    tty: true
+'''
+        }
+    }
 
     options {
         timestamps()
@@ -21,39 +47,11 @@ pipeline {
         AWS_REGION = 'ap-south-1'
         ECR_REGISTRY = '029678959141.dkr.ecr.ap-south-1.amazonaws.com'
         ECR_REPOSITORY = 'microservices-demo/emailservice'
-
-        IMAGE_TAG = "${env.GIT_COMMIT}"
     }
 
     stages {
 
         stage('Checkout') {
-            agent {
-                kubernetes {
-                    yaml '''
-apiVersion: v1
-kind: Pod
-spec:
-  serviceAccountName: jenkins
-  containers:
-  - name: python
-    image: python:3.12-alpine
-    command:
-    - sleep
-    args:
-    - 99d
-    tty: true
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.23.2-debug
-    command:
-    - sleep
-    args:
-    - 99d
-    tty: true
-'''
-                }
-            }
-
             steps {
                 checkout scm
 
@@ -77,33 +75,20 @@ spec:
         }
 
         stage('Build & Validate') {
-            agent {
-                kubernetes {
-                    yaml '''
-apiVersion: v1
-kind: Pod
-spec:
-  serviceAccountName: jenkins
-  containers:
-  - name: python
-    image: python:3.12-alpine
-    command:
-    - sleep
-    args:
-    - 99d
-    tty: true
-'''
-                }
-            }
-
             steps {
                 container('python') {
                     dir("${SERVICE_DIR}") {
                         sh '''
                             set -e
 
+                            echo "======================================"
+                            echo "Python Build & Validate"
+                            echo "======================================"
+
                             python --version
                             pip --version
+
+                            test -f requirements.txt
 
                             python -m venv .venv
                             . .venv/bin/activate
@@ -117,38 +102,15 @@ spec:
                                 logger.py \
                                 demo_pb2.py \
                                 demo_pb2_grpc.py
+
+                            echo "Python validation successful."
                         '''
                     }
-                }
-            }
-
-            post {
-                always {
-                    echo "Python build/validation stage completed."
                 }
             }
         }
 
         stage('Build & Push to ECR') {
-            agent {
-                kubernetes {
-                    yaml '''
-apiVersion: v1
-kind: Pod
-spec:
-  serviceAccountName: jenkins
-  containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.23.2-debug
-    command:
-    - sleep
-    args:
-    - 99d
-    tty: true
-'''
-                }
-            }
-
             steps {
                 container('kaniko') {
                     sh '''
@@ -160,6 +122,7 @@ spec:
                         echo "Building ${SERVICE_NAME}"
                         echo "Dockerfile: Dockerfile"
                         echo "Context: $(pwd)"
+                        echo "Image Tag: ${IMAGE_TAG}"
                         echo "======================================"
 
                         test -f Dockerfile
@@ -204,10 +167,6 @@ spec:
 
             ==============================================
             """
-        }
-
-        always {
-            cleanWs()
         }
     }
 }
