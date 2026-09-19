@@ -141,7 +141,7 @@ spec:
                         --scanners vuln \
                         --severity HIGH,CRITICAL \
                         --exit-code 1 \
-                        ${ECR_REPO}:${IMAGE_TAG}
+                        ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
                     '''
                 }
             }
@@ -168,15 +168,15 @@ spec:
 
         failure {
             echo """
-==============================================
-CI PIPELINE FAILED
-==============================================
+                ==============================================
+                CI PIPELINE FAILED
+                ==============================================
 
-Service : ${SERVICE_NAME}
-Commit  : ${GIT_COMMIT_SHORT}
+                Service : ${SERVICE_NAME}
+                Commit  : ${GIT_COMMIT_SHORT}
 
-==============================================
-"""
+                ==============================================
+                """
         }
 
         always {

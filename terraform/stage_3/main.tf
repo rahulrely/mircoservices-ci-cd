@@ -204,40 +204,37 @@ resource "aws_iam_role" "jenkins" {
 # =========================================================
 
 resource "aws_iam_role_policy" "jenkins_ecr" {
-
   name = "${local.jenkins_role_name}-ecr"
-
   role = aws_iam_role.jenkins.id
 
   policy = jsonencode({
-
     Version = "2012-10-17"
 
     Statement = [
-
-      # Required to obtain an ECR authorization token
+      # ECR login
       {
         Effect = "Allow"
-
         Action = [
           "ecr:GetAuthorizationToken"
         ]
-
         Resource = "*"
       },
 
-      # Allow Jenkins to push images to project ECR repositories
+      # ECR push + pull
       {
         Effect = "Allow"
-
         Action = [
           "ecr:BatchCheckLayerAvailability",
           "ecr:CompleteLayerUpload",
           "ecr:InitiateLayerUpload",
           "ecr:PutImage",
-          "ecr:UploadLayerPart"
-        ]
+          "ecr:UploadLayerPart",
 
+          # Trivy needs these to pull the image
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:DescribeImages"
+        ]
         Resource = "arn:aws:ecr:${var.aws_region}:${data.aws_caller_identity.current.account_id}:repository/microservices-demo/*"
       }
     ]
@@ -287,3 +284,4 @@ resource "aws_eks_addon" "ebs_csi" {
     aws_iam_role_policy_attachment.ebs_csi
   ]
 }
+
