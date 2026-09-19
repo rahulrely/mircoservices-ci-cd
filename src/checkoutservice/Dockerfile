@@ -2,8 +2,7 @@
 #
 # Licensed under the Apache License, Version 2.0
 
-FROM --platform=$BUILDPLATFORM golang:1.25.0-alpine@sha256:68fc16b7551a4cf71251f343a47ff766ec4fa7c02fbdeb4c5ed2a14c2c23ea08 AS builder
-
+FROM --platform=$BUILDPLATFORM golang:1.25.13-alpine@sha256:fec9672136e7ccfa4f6cf59177987de3d8ee9b14953b6ea5485dbd08bf7b4aed AS builder
 WORKDIR /src
 
 COPY go.mod go.sum ./
