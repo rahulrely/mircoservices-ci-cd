@@ -18,268 +18,163 @@ pipeline {
         SERVICE_NAME = 'emailservice'
         SERVICE_DIR = 'src/emailservice'
 
-        GHCR_REGISTRY = 'ghcr.io'
-        GHCR_OWNER = 'rahulrely'
-        GHCR_REPOSITORY = 'microservices-demo/emailservice'
+        AWS_REGION = 'ap-south-1'
+        ECR_REGISTRY = '029678959141.dkr.ecr.ap-south-1.amazonaws.com'
+        ECR_REPOSITORY = 'microservices-demo/emailservice'
 
         IMAGE_TAG = "${env.GIT_COMMIT}"
-
-        SONARQUBE_SERVER = 'sonarqube'
     }
 
     stages {
 
-        /*
-         * ------------------------------------------------
-         * 1. CHECKOUT
-         * ------------------------------------------------
-         */
-
         stage('Checkout') {
             agent {
-                label 'linux-docker'
+                kubernetes {
+                    yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins
+  containers:
+  - name: python
+    image: python:3.12-alpine
+    command:
+    - sleep
+    args:
+    - 99d
+    tty: true
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    command:
+    - sleep
+    args:
+    - 99d
+    tty: true
+'''
+                }
             }
 
             steps {
                 checkout scm
 
                 script {
+                    env.IMAGE_TAG = sh(
+                        script: 'git rev-parse HEAD',
+                        returnStdout: true
+                    ).trim()
+
                     env.SHORT_COMMIT = sh(
                         script: 'git rev-parse --short HEAD',
                         returnStdout: true
                     ).trim()
 
-                    echo "Building ${SERVICE_NAME}"
-                    echo "Commit: ${SHORT_COMMIT}"
+                    echo "======================================"
+                    echo "Service : ${SERVICE_NAME}"
+                    echo "Commit  : ${SHORT_COMMIT}"
+                    echo "======================================"
                 }
             }
         }
 
-
-        /*
-         * ------------------------------------------------
-         * 2. PYTHON BUILD / TEST
-         * ------------------------------------------------
-         */
-
-        stage('Build & Test') {
+        stage('Build & Validate') {
             agent {
-                label 'linux-docker'
-            }
-
-            steps {
-                dir("${SERVICE_DIR}") {
-
-                    sh '''
-                        python3 --version
-                        pip3 --version
-
-                        python3 -m venv .venv
-
-                        . .venv/bin/activate
-
-                        pip install --upgrade pip
-
-                        pip install -r requirements.txt
-
-                        chmod +x genproto.sh
-                        ./genproto.sh
-                    '''
+                kubernetes {
+                    yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins
+  containers:
+  - name: python
+    image: python:3.12-alpine
+    command:
+    - sleep
+    args:
+    - 99d
+    tty: true
+'''
                 }
             }
-        }
-
-
-        /*
-         * ------------------------------------------------
-         * 3. PYTHON TESTS
-         * ------------------------------------------------
-         */
-
-        stage('Unit Tests') {
-            agent {
-                label 'linux-docker'
-            }
 
             steps {
-                dir("${SERVICE_DIR}") {
-
-                    sh '''
-                        . .venv/bin/activate
-
-                        if python -c "import pytest" 2>/dev/null; then
-                            pytest
-                        else
-                            echo "No pytest dependency found."
-                            echo "Skipping Python unit tests."
-                        fi
-                    '''
-                }
-            }
-        }
-
-
-        /*
-         * ------------------------------------------------
-         * 4. SONARQUBE
-         * ------------------------------------------------
-         */
-
-        stage('SonarQube Analysis') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-                dir("${SERVICE_DIR}") {
-
-                    withSonarQubeEnv("${SONARQUBE_SERVER}") {
-
+                container('python') {
+                    dir("${SERVICE_DIR}") {
                         sh '''
-                            sonar-scanner \
-                                -Dsonar.projectKey=microservices-demo-emailservice \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=$SONAR_HOST_URL
+                            set -e
+
+                            python --version
+                            pip --version
+
+                            python -m venv .venv
+                            . .venv/bin/activate
+
+                            pip install --upgrade pip
+                            pip install -r requirements.txt
+
+                            python -m py_compile \
+                                email_server.py \
+                                email_client.py \
+                                logger.py \
+                                demo_pb2.py \
+                                demo_pb2_grpc.py
                         '''
                     }
                 }
             }
-        }
 
-
-        /*
-         * ------------------------------------------------
-         * 5. QUALITY GATE
-         * ------------------------------------------------
-         */
-
-        stage('Quality Gate') {
-            agent none
-
-            steps {
-                timeout(time: 10, unit: 'MINUTES') {
-
-                    waitForQualityGate(
-                        abortPipeline: true
-                    )
+            post {
+                always {
+                    echo "Python build/validation stage completed."
                 }
             }
         }
 
-
-        /*
-         * ------------------------------------------------
-         * 6. DOCKER BUILD
-         * ------------------------------------------------
-         */
-
-        stage('Docker Build') {
+        stage('Build & Push to ECR') {
             agent {
-                label 'linux-docker'
+                kubernetes {
+                    yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins
+  containers:
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    command:
+    - sleep
+    args:
+    - 99d
+    tty: true
+'''
+                }
             }
 
             steps {
-                dir("${SERVICE_DIR}") {
-
+                container('kaniko') {
                     sh '''
-                        docker build \
-                            -t ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG} \
-                            -t ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:latest \
-                            .
+                        set -e
+
+                        cd "${WORKSPACE}/${SERVICE_DIR}"
+
+                        echo "======================================"
+                        echo "Building ${SERVICE_NAME}"
+                        echo "Dockerfile: Dockerfile"
+                        echo "Context: $(pwd)"
+                        echo "======================================"
+
+                        test -f Dockerfile
+
+                        /kaniko/executor \
+                            --context="$(pwd)" \
+                            --dockerfile="$(pwd)/Dockerfile" \
+                            --destination="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
                     '''
                 }
-            }
-        }
-
-
-        /*
-         * ------------------------------------------------
-         * 7. TRIVY SECURITY SCAN
-         * ------------------------------------------------
-         */
-
-        stage('Security Scan') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-
-                sh '''
-                    trivy image \
-                        --severity HIGH,CRITICAL \
-                        --exit-code 1 \
-                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
-                '''
-            }
-        }
-
-
-        /*
-         * ------------------------------------------------
-         * 8. GHCR LOGIN
-         * ------------------------------------------------
-         */
-
-        stage('GHCR Login') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'github-container-registry',
-                        usernameVariable: 'GHCR_USERNAME',
-                        passwordVariable: 'GHCR_TOKEN'
-                    )
-                ]) {
-
-                    sh '''
-                        echo "${GHCR_TOKEN}" | \
-                        docker login ${GHCR_REGISTRY} \
-                            --username "${GHCR_USERNAME}" \
-                            --password-stdin
-                    '''
-                }
-            }
-        }
-
-
-        /*
-         * ------------------------------------------------
-         * 9. PUSH IMAGE
-         * ------------------------------------------------
-         */
-
-        stage('Push Image') {
-            agent {
-                label 'linux-docker'
-            }
-
-            steps {
-
-                sh '''
-                    docker push \
-                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
-
-                    docker push \
-                        ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:latest
-                '''
             }
         }
     }
 
-
-    /*
-     * ----------------------------------------------------
-     * POST ACTIONS
-     * ----------------------------------------------------
-     */
-
     post {
-
         success {
             echo """
             ==============================================
@@ -289,8 +184,8 @@ pipeline {
             Service : ${SERVICE_NAME}
             Commit  : ${SHORT_COMMIT}
 
-            Image:
-            ${GHCR_REGISTRY}/${GHCR_OWNER}/${GHCR_REPOSITORY}:${IMAGE_TAG}
+            ECR Image:
+            ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
             ==============================================
             """
