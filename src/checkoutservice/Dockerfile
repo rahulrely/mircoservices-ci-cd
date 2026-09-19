@@ -2,7 +2,7 @@
 #
 # Licensed under the Apache License, Version 2.0
 
-FROM golang:1.23.4-alpine@sha256:c23339199a08b0e12032856908589a6d41a0dab141b8b3b21f156fc571a3f1d3 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.24.13-alpine@sha256:757779acac4af1b349a20f357c7296097b4a0b89da4ad0e370b339060077282a AS builder
 
 WORKDIR /src
 
