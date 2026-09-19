@@ -78,33 +78,39 @@ spec:
             steps {
                 container('python') {
                     dir("${SERVICE_DIR}") {
-                        sh '''
-                            set -e
+sh '''
+    set -e
 
-                            echo "======================================"
-                            echo "Python Build & Validate"
-                            echo "======================================"
+    echo "======================================"
+    echo "Python Build & Validate"
+    echo "======================================"
 
-                            python --version
-                            pip --version
+    python --version
+    pip --version
 
-                            test -f requirements.txt
+    apk add --no-cache \
+        g++ \
+        gcc \
+        musl-dev \
+        make
 
-                            python -m venv .venv
-                            . .venv/bin/activate
+    test -f requirements.txt
 
-                            pip install --upgrade pip
-                            pip install -r requirements.txt
+    python -m venv .venv
+    . .venv/bin/activate
 
-                            python -m py_compile \
-                                email_server.py \
-                                email_client.py \
-                                logger.py \
-                                demo_pb2.py \
-                                demo_pb2_grpc.py
+    pip install --upgrade pip
+    pip install -r requirements.txt
 
-                            echo "Python validation successful."
-                        '''
+    python -m py_compile \
+        email_server.py \
+        email_client.py \
+        logger.py \
+        demo_pb2.py \
+        demo_pb2_grpc.py
+
+    echo "Python validation successful."
+'''
                     }
                 }
             }
