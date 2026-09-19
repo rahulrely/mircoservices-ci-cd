@@ -31,12 +31,12 @@ spec:
     - 99d
     tty: true
 
-    - name: trivy
+  - name: trivy
     image: public.ecr.aws/aquasecurity/trivy:0.74.0
     command:
-        - sleep
+    - sleep
     args:
-        - 99d
+    - 99d
     tty: true
 '''
         }
