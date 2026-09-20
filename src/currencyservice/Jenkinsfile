@@ -88,35 +88,35 @@ spec:
             }
         }
 
-        stage('Build & Validate') {
-            steps {
-                container('node') {
-                    dir("${SERVICE_DIR}") {
-                        sh '''
-                            set -e
+stage('Build & Validate') {
+    steps {
+        container('node') {
+            dir("${SERVICE_DIR}") {
+                sh '''
+                    set -e
 
-                            node --version
-                            npm --version
+                    node --version
+                    npm --version
 
-                            apk add --no-cache \
-                                python3 \
-                                make \
-                                g++
+                    apk add --no-cache \
+                        python3 \
+                        make \
+                        g++
 
-                            npm ci
+                    npm ci
 
-                            node --check server.js
-                        '''
-                    }
-                }
-            }
-
-            post {
-                always {
-                    echo "Build/validation stage completed."
-                }
+                    node --check server.js
+                '''
             }
         }
+    }
+
+    post {
+        always {
+            echo "Build/validation stage completed."
+        }
+    }
+}
 
         stage('Build & Push to ECR') {
             steps {
