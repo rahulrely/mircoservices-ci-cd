@@ -95,29 +95,32 @@ stage('Build & Validate') {
                 sh '''
                     set -e
 
+                    echo "Node:"
                     node --version
+
+                    echo "NPM:"
                     npm --version
 
-                    apk add --no-cache \
-                        python3 \
-                        make \
-                        g++
+                    echo "Installing native build dependencies..."
+                    apk add --no-cache python3 make g++
 
+                    echo "Installing dependencies..."
                     npm ci
 
+                    echo "Validating JavaScript..."
                     node --check server.js
+
+                    echo "Build & validation successful."
                 '''
             }
         }
     }
-
     post {
         always {
             echo "Build/validation stage completed."
         }
     }
 }
-
         stage('Build & Push to ECR') {
             steps {
                 container('kaniko') {
