@@ -12,30 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM node:20.18.1-alpine@sha256:24fb6aa7020d9a20b00d6da6d1714187c45ed00d1eb4adb01395843c338b9372 AS builder
+# Stage 1: Build native dependencies
+FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
 
-# Some packages (e.g. @google-cloud/profiler) require additional
-# deps for post-install scripts
-RUN apk add --update --no-cache \
-    python3 \
-    make \
-    g++
+# Install build dependencies for native modules (e.g., @google-cloud/profiler)
+RUN apk update && apk upgrade --no-cache && \
+    apk add --no-cache python3 make g++
 
 WORKDIR /usr/src/app
 
 COPY package*.json ./
 
-RUN npm install --only=production
+RUN npm ci --omit=dev
 
-FROM alpine:3.20.3@sha256:1e42bbe2508154c9126d48c2b8a75420c3544343bf86fd041fb7527e017a4b4a
+# Stage 2: Minimal runtime image
+FROM node:20-alpine
 
-RUN apk add --no-cache nodejs
+# Upgrade base packages to ensure no lingering OS-level CVEs remain
+RUN apk update && apk upgrade --no-cache
 
 WORKDIR /usr/src/app
 
-COPY --from=builder /usr/src/app/node_modules ./node_modules
+# Non-root user provided by node image for better container security
+USER node
 
-COPY . .
+COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
+COPY --chown=node:node . .
 
 EXPOSE 7000
 
